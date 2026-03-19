@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 RELEASE="clamav"
 NAMESPACE="clamav-system"
-CHART="./charts/clamav"
+CHART="$REPO_ROOT/charts/clamav"
+VALUES="$SCRIPT_DIR/values.yaml"
 IMAGE="clamav/clamav:1.4_base"
 
 # ── Prerequisites ────────────────────────────────────────────────────────────
@@ -43,7 +47,7 @@ echo "► Deploying ClamAV (Deployment, 1 replica, emptyDir storage)..."
 helm upgrade --install "$RELEASE" "$CHART" \
   --namespace "$NAMESPACE" \
   --create-namespace \
-  --values "$CHART/values-minikube.yaml" \
+  --values "$VALUES" \
   --set workload.type=deployment \
   --set replicaCount=1 \
   --set persistence.definitions.type=emptyDir \
@@ -56,11 +60,11 @@ echo "✓ ClamAV deployed"
 echo ""
 kubectl get pods -n "$NAMESPACE"
 echo ""
-echo "To watch startup logs (definitions download takes a few minutes):"
-echo "  kubectl logs -n $NAMESPACE deploy/$RELEASE -c freshclam-init -f"
+echo "To run tests:"
+echo "  ./minikube/test.sh"
 echo ""
-echo "To test a scan once the pod is ready:"
-echo "  kubectl exec -n $NAMESPACE deploy/$RELEASE -c clamd -- clamdscan --no-summary /etc/hostname"
+echo "To watch startup logs:"
+echo "  kubectl logs -n $NAMESPACE deploy/$RELEASE -c freshclam-init -f"
 echo ""
 echo "To port-forward clamd locally:"
 echo "  kubectl port-forward -n $NAMESPACE svc/$RELEASE 3310:3310"

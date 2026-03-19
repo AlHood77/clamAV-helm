@@ -1,0 +1,136 @@
+## ClamAV Helm Chart Values
+
+# -- Number of ClamAV replicas
+replicaCount: 1
+
+image:
+  # -- ClamAV image repository
+  repository: clamav/clamav
+  # -- Image tag
+  tag: "1.4_base"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Namespace to deploy into
+namespace:
+  create: true
+  name: clamav-system
+
+# -- Pod security context
+podSecurityContext:
+  # -- fsGroup makes the PVC writable by the ClamAV group (GID 101)
+  fsGroup: 101
+
+service:
+  # ClusterIP service for clients (e.g. validation-service)
+  main:
+    enabled: true
+    type: ClusterIP
+    port: 3310
+
+  # Headless service for StatefulSet pod identity/DNS
+  headless:
+    enabled: true
+
+# Persistent volume for virus definitions
+persistence:
+  definitions:
+    storageClassName: standard-rwo
+    accessMode: ReadWriteOnce
+    size: 1Gi
+
+# -- Resources for the clamd container
+clamd:
+  resources:
+    requests:
+      memory: "3Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2"
+  env:
+    # Disable freshclamd inside clamd container — sidecar handles updates
+    CLAMAV_NO_FRESHCLAMD: "true"
+  probes:
+    startup:
+      failureThreshold: 30
+      periodSeconds: 10
+    readiness:
+      periodSeconds: 10
+    liveness:
+      periodSeconds: 30
+      failureThreshold: 3
+
+# -- Resources for the freshclam sidecar container
+freshclam:
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "300m"
+  env:
+    CLAMAV_NO_CLAMD: "true"
+    # Number of definition update checks per day
+    FRESHCLAM_CHECKS: "24"
+
+# -- Resources for the freshclam-init initContainer
+freshclamInit:
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# -- ClamAV configuration files
+config:
+  clamd: |
+    # Network
+    TCPSocket 3310
+    TCPAddr 0.0.0.0
+    # Unix socket — used by freshclam sidecar to notify clamd of definition updates
+    LocalSocket /run/clamav/clamd.sock
+    # Logging
+    LogTime yes
+    LogClean yes
+    LogVerbose no
+    Foreground yes
+    # Database directory — shared with freshclam sidecar via PVC
+    DatabaseDirectory /var/lib/clamav
+    # Self-check interval — clamd watches this directory and reloads
+    # definitions automatically when freshclam sidecar updates them
+    SelfCheck 3600
+    # Concurrent reload uses 2x RAM briefly during definition update
+    # Set to 'no' if RAM is constrained (blocks scans during reload)
+    ConcurrentDatabaseReload yes
+    # Scanning limits
+    MaxFileSize 500M
+    MaxScanSize 900M
+    MaxThreads 10
+    MaxConnectionQueueLength 200
+    ReadTimeout 180
+    # File types
+    ScanArchive yes
+    ScanPDF yes
+    ScanXMLDOCS yes
+    ScanELF yes
+    ScanMail yes
+
+  freshclam: |
+    # Database directory — writes to persistent PVC
+    # survives pod restarts, no re-download needed
+    DatabaseDirectory /var/lib/clamav
+    # Pull from official ClamAV CDN
+    DatabaseMirror database.clamav.net
+    # Check for updates 24 times per day
+    Checks 24
+    # Logging
+    LogTime yes
+    Foreground yes
+    # Test databases before making them live
+    TestDatabases yes
+    # Notify clamd to reload definitions after update via socket
+    NotifyClamd /etc/clamav/clamd.conf

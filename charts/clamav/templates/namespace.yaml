@@ -1,0 +1,8 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "clamav.namespace" . }}
+  labels:
+    name: {{ include "clamav.namespace" . }}
+{{- end }}

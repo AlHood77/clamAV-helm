@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "clamav.fullname" . }}
+  namespace: {{ include "clamav.namespace" . }}
+  labels:
+    {{- include "clamav.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "clamav.fullname" . }}-headless
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "clamav.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "clamav.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: freshclam-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - freshclam
+            - --config-file=/etc/clamav/freshclam.conf
+            - --checks=1
+          volumeMounts:
+            - name: definitions
+              mountPath: /var/lib/clamav
+            - name: config
+              mountPath: /etc/clamav/freshclam.conf
+              subPath: freshclam.conf
+          resources:
+            {{- toYaml .Values.freshclamInit.resources | nindent 12 }}
+      containers:
+        - name: clamd
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: CLAMAV_NO_FRESHCLAMD
+              value: {{ .Values.clamd.env.CLAMAV_NO_FRESHCLAMD | quote }}
+          ports:
+            - name: clamd
+              containerPort: {{ .Values.service.main.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: definitions
+              mountPath: /var/lib/clamav
+            - name: config
+              mountPath: /etc/clamav/clamd.conf
+              subPath: clamd.conf
+            - name: run
+              mountPath: /run/clamav
+          resources:
+            {{- toYaml .Values.clamd.resources | nindent 12 }}
+          startupProbe:
+            exec:
+              command:
+                - clamdscan
+                - --no-summary
+                - /etc/hostname
+            failureThreshold: {{ .Values.clamd.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.clamd.probes.startup.periodSeconds }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.service.main.port }}
+            periodSeconds: {{ .Values.clamd.probes.readiness.periodSeconds }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.service.main.port }}
+            periodSeconds: {{ .Values.clamd.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.clamd.probes.liveness.failureThreshold }}
+
+        - name: freshclam
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: CLAMAV_NO_CLAMD
+              value: {{ .Values.freshclam.env.CLAMAV_NO_CLAMD | quote }}
+            - name: FRESHCLAM_CHECKS
+              value: {{ .Values.freshclam.env.FRESHCLAM_CHECKS | quote }}
+          volumeMounts:
+            - name: definitions
+              mountPath: /var/lib/clamav
+            - name: config
+              mountPath: /etc/clamav/freshclam.conf
+              subPath: freshclam.conf
+            - name: run
+              mountPath: /run/clamav
+          resources:
+            {{- toYaml .Values.freshclam.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "clamav.fullname" . }}-config
+        - name: run
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: definitions
+      spec:
+        accessModes:
+          - {{ .Values.persistence.definitions.accessMode }}
+        storageClassName: {{ .Values.persistence.definitions.storageClassName }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.definitions.size }}

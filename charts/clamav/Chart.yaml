@@ -1,0 +1,14 @@
+apiVersion: v2
+name: clamav
+description: A Helm chart for deploying ClamAV antivirus as a StatefulSet with clamd and freshclam sidecars
+type: application
+version: 0.1.0
+appVersion: "1.4"
+keywords:
+  - clamav
+  - antivirus
+  - security
+sources:
+  - https://github.com/Cisco-Talos/clamav
+maintainers:
+  - name: AlHood77

@@ -39,7 +39,7 @@ echo ""
 
 echo "▸ Test 3: TCP socket PING/PONG"
 pong=$(kubectl exec -n "$NAMESPACE" deploy/"$RELEASE" -c clamd -- \
-  /bin/sh -c 'echo "PING" | nc -q1 localhost 3310' 2>&1 || true)
+  /bin/sh -c 'echo "PING" | nc -w1 127.0.0.1 3310; true' 2>&1)
 echo "  $pong"
 if echo "$pong" | grep -q "PONG"; then
   echo "  ✓ PASS"

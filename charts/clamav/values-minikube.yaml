@@ -27,11 +27,6 @@ freshclam:
     limits:
       memory: "512Mi"
       cpu: "150m"
-  # Disable TestDatabases for local dev — it loads the full DB into memory to validate
-  # it before making it live, which OOM-kills the init container on a constrained VM.
-  # In production this should remain enabled (the default).
-  extraConfig: |
-    TestDatabases no
 
 freshclamInit:
   resources:
@@ -41,3 +36,18 @@ freshclamInit:
     limits:
       memory: "512Mi"
       cpu: "250m"
+
+# Override the full freshclam config to disable TestDatabases.
+# freshclam takes the FIRST occurrence of a directive so extraConfig appends
+# can't override it — a full config block replacement is needed instead.
+# TestDatabases loads the entire DB into memory to validate it before going live,
+# which OOM-kills the init container on a constrained VM. Safe to skip locally.
+config:
+  freshclam: |
+    DatabaseDirectory /var/lib/clamav
+    DatabaseMirror database.clamav.net
+    Checks 24
+    LogTime yes
+    Foreground yes
+    TestDatabases no
+    NotifyClamd /etc/clamav/clamd.conf

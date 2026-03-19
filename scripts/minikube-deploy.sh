@@ -4,10 +4,11 @@ set -euo pipefail
 RELEASE="clamav"
 NAMESPACE="clamav-system"
 CHART="./charts/clamav"
+IMAGE="clamav/clamav:1.4_base"
 
 # ── Prerequisites ────────────────────────────────────────────────────────────
 
-for cmd in minikube helm kubectl; do
+for cmd in minikube helm kubectl docker; do
   if ! command -v "$cmd" &>/dev/null; then
     echo "ERROR: '$cmd' not found — please install it before running this script."
     exit 1
@@ -16,20 +17,23 @@ done
 
 # ── Minikube ─────────────────────────────────────────────────────────────────
 
-# ClamAV only publishes linux/amd64 images. On Apple Silicon (arm64) minikube
-# must use the docker driver so Docker Desktop handles AMD64 emulation via Rosetta 2.
-MINIKUBE_ARGS=""
-if [[ "$(uname -m)" == "arm64" ]]; then
-  echo "► Apple Silicon detected — using docker driver for AMD64 emulation"
-  MINIKUBE_ARGS="--driver=docker"
-fi
-
 if ! minikube status --format='{{.Host}}' 2>/dev/null | grep -q "Running"; then
   echo "► Starting minikube..."
-  # shellcheck disable=SC2086
-  minikube start $MINIKUBE_ARGS
+  minikube start
 else
   echo "✓ Minikube already running"
+fi
+
+# ── Image ────────────────────────────────────────────────────────────────────
+
+# ClamAV only publishes linux/amd64 images. On Apple Silicon the node is arm64
+# so Kubernetes will fail to pull the image from the registry. Instead we pull
+# it locally with an explicit platform flag and load it into minikube's cache.
+# imagePullPolicy: IfNotPresent (the chart default) then uses the cached image.
+if [[ "$(uname -m)" == "arm64" ]]; then
+  echo "► Apple Silicon detected — pulling amd64 image and loading into minikube..."
+  docker pull --platform linux/amd64 "$IMAGE"
+  minikube image load "$IMAGE"
 fi
 
 # ── Deploy ───────────────────────────────────────────────────────────────────

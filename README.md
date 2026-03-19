@@ -33,6 +33,7 @@
   - [Proxy](#proxy)
   - [Notifications & Events](#notifications--events)
 - [References](#references)
+- [Local Development (Minikube)](#local-development-minikube)
 
 ---
 
@@ -136,6 +137,19 @@ One pod per node. Each pod scans files on that node and keeps its own definition
         ▲ ClusterIP service: clamav:3310
         │ (one endpoint per node)
 ```
+
+---
+
+## Local Development (Minikube)
+
+See [minikube/](minikube/) for a self-contained local dev setup:
+
+```bash
+./minikube/deploy.sh   # start minikube and install the chart
+./minikube/test.sh     # run smoke tests against the running instance
+```
+
+Handles Apple Silicon (AMD64 image emulation via Docker Desktop), low-memory resource sizing, and `TestDatabases` disabled to avoid OOM on the constrained VM. See [minikube/README.md](minikube/README.md) for details.
 
 ---
 

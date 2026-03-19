@@ -27,6 +27,11 @@ freshclam:
     limits:
       memory: "512Mi"
       cpu: "150m"
+  # Disable TestDatabases for local dev — it loads the full DB into memory to validate
+  # it before making it live, which OOM-kills the init container on a constrained VM.
+  # In production this should remain enabled (the default).
+  extraConfig: |
+    TestDatabases no
 
 freshclamInit:
   resources:

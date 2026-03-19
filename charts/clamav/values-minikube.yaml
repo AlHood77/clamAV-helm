@@ -2,11 +2,6 @@
 # Sized to fit in a default minikube VM (2GB RAM).
 # Usage: helm install clamav ./charts/clamav -f charts/clamav/values-minikube.yaml
 
-# The _base image tag does not publish an ARM64 manifest.
-# The stable tag is multi-arch (amd64 + arm64) and includes pre-bundled definitions.
-image:
-  tag: "stable"
-
 clamd:
   resources:
     requests:

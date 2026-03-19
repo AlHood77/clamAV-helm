@@ -16,9 +16,18 @@ done
 
 # ── Minikube ─────────────────────────────────────────────────────────────────
 
+# ClamAV only publishes linux/amd64 images. On Apple Silicon (arm64) minikube
+# must use the docker driver so Docker Desktop handles AMD64 emulation via Rosetta 2.
+MINIKUBE_ARGS=""
+if [[ "$(uname -m)" == "arm64" ]]; then
+  echo "► Apple Silicon detected — using docker driver for AMD64 emulation"
+  MINIKUBE_ARGS="--driver=docker"
+fi
+
 if ! minikube status --format='{{.Host}}' 2>/dev/null | grep -q "Running"; then
   echo "► Starting minikube..."
-  minikube start
+  # shellcheck disable=SC2086
+  minikube start $MINIKUBE_ARGS
 else
   echo "✓ Minikube already running"
 fi

@@ -1,0 +1,16 @@
+ClamAV has been deployed successfully!
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ include "clamav.namespace" . }}
+
+Clamd is accessible within the cluster at:
+  {{ include "clamav.fullname" . }}.{{ include "clamav.namespace" . }}.svc.cluster.local:{{ .Values.service.main.port }}
+
+Each pod is also reachable via the headless service:
+  <pod>.{{ include "clamav.fullname" . }}-headless.{{ include "clamav.namespace" . }}.svc.cluster.local:{{ .Values.service.main.port }}
+
+To check pod status:
+  kubectl get pods -n {{ include "clamav.namespace" . }}
+
+To watch ClamAV logs:
+  kubectl logs -n {{ include "clamav.namespace" . }} statefulset/{{ include "clamav.fullname" . }} -c clamd -f

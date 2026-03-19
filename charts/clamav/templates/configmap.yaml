@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clamav.fullname" . }}-config
+  namespace: {{ include "clamav.namespace" . }}
+  labels:
+    {{- include "clamav.labels" . | nindent 4 }}
+data:
+  clamd.conf: |
+    {{- .Values.config.clamd | nindent 4 }}
+  freshclam.conf: |
+    {{- .Values.config.freshclam | nindent 4 }}

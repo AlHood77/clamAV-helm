@@ -30,6 +30,7 @@ echo "► Deploying ClamAV (Deployment, 1 replica, emptyDir storage)..."
 helm upgrade --install "$RELEASE" "$CHART" \
   --namespace "$NAMESPACE" \
   --create-namespace \
+  --values "$CHART/values-minikube.yaml" \
   --set workload.type=deployment \
   --set replicaCount=1 \
   --set persistence.definitions.type=emptyDir \

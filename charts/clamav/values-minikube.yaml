@@ -1,0 +1,30 @@
+# Minikube / local development overrides.
+# Sized to fit in a default minikube VM (2GB RAM).
+# Usage: helm install clamav ./charts/clamav -f charts/clamav/values-minikube.yaml
+
+clamd:
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
+
+freshclam:
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "512Mi"
+      cpu: "150m"
+
+freshclamInit:
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"

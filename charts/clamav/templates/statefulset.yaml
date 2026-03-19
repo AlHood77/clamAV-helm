@@ -97,6 +97,16 @@ spec:
             name: {{ include "clamav.fullname" . }}-config
         - name: run
           emptyDir: {}
+        {{- if or (not .Values.persistence.definitions.enabled) .Values.persistence.definitions.existingClaim }}
+        - name: definitions
+          {{- if .Values.persistence.definitions.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.definitions.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+  {{- if and .Values.persistence.definitions.enabled (not .Values.persistence.definitions.existingClaim) }}
   volumeClaimTemplates:
     - metadata:
         name: definitions
@@ -107,3 +117,4 @@ spec:
         resources:
           requests:
             storage: {{ .Values.persistence.definitions.size }}
+  {{- end }}

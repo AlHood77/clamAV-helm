@@ -32,11 +32,22 @@ service:
   headless:
     enabled: true
 
-# Persistent volume for virus definitions
+# Storage for ClamAV virus definitions (shared between clamd and freshclam)
 persistence:
   definitions:
+    # -- Set to false to use an emptyDir (ephemeral — re-downloads on every pod restart)
+    enabled: true
+    # -- Use an existing PVC instead of provisioning a new one.
+    # When set, storageClassName/accessMode/size are ignored.
+    # The PVC must already exist in the same namespace.
+    # Examples: an NFS-backed PVC, a cloud-provider managed disk, a CSI volume, etc.
+    existingClaim: ""
+    # -- Storage class for the dynamically provisioned PVC.
+    # Set to "" to use the cluster default storage class.
     storageClassName: standard-rwo
+    # -- Access mode for the PVC
     accessMode: ReadWriteOnce
+    # -- Size of the PVC (ClamAV definitions are ~300-400 MB; 1Gi gives headroom)
     size: 1Gi
 
 # -- Resources for the clamd container

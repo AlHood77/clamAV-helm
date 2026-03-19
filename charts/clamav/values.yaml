@@ -1,6 +1,13 @@
 ## ClamAV Helm Chart Values
 
-# -- Number of ClamAV replicas
+# -- Workload type: statefulset, deployment, daemonset
+# - statefulset: stable pod identity, per-pod PVC. Best for a central scanning service.
+# - deployment:  stateless replicas, shared PVC or ephemeral. Best for horizontal scaling.
+# - daemonset:   one pod per node. Best for node-level in-cluster scanning.
+workload:
+  type: statefulset
+
+# -- Number of replicas (ignored by daemonset)
 replicaCount: 1
 
 image:
@@ -11,10 +18,42 @@ image:
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
+# -- Image pull secrets for private registries / air-gapped environments
+# imagePullSecrets:
+#   - name: my-registry-secret
+imagePullSecrets: []
+
 # -- Namespace to deploy into
 namespace:
   create: true
   name: clamav-system
+
+# -- ServiceAccount settings
+serviceAccount:
+  # Create a dedicated ServiceAccount for ClamAV pods.
+  # Required for IRSA (AWS), Workload Identity (GCP/Azure), or clusters with RBAC enforcement.
+  create: true
+  # Override the auto-generated name (defaults to the release fullname).
+  name: ""
+  # Annotations to add to the ServiceAccount (e.g. for IRSA/Workload Identity).
+  annotations: {}
+
+# -- Annotations to add to each pod
+podAnnotations: {}
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling.
+# The DaemonSet workload type often needs tolerations to run on control-plane nodes:
+# tolerations:
+#   - key: node-role.kubernetes.io/control-plane
+#     operator: Exists
+#     effect: NoSchedule
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
 
 # -- Pod security context
 podSecurityContext:
@@ -28,27 +67,84 @@ service:
     type: ClusterIP
     port: 3310
 
-  # Headless service for StatefulSet pod identity/DNS
+  # Headless service — only rendered for StatefulSet (required for pod DNS identity)
   headless:
     enabled: true
 
 # Storage for ClamAV virus definitions (shared between clamd and freshclam)
 persistence:
   definitions:
-    # -- Set to false to use an emptyDir (ephemeral — re-downloads on every pod restart)
-    enabled: true
-    # -- Use an existing PVC instead of provisioning a new one.
-    # When set, storageClassName/accessMode/size are ignored.
-    # The PVC must already exist in the same namespace.
-    # Examples: an NFS-backed PVC, a cloud-provider managed disk, a CSI volume, etc.
-    existingClaim: ""
-    # -- Storage class for the dynamically provisioned PVC.
-    # Set to "" to use the cluster default storage class.
-    storageClassName: standard-rwo
-    # -- Access mode for the PVC
+    # Storage backend for virus definitions.
+    # Options:
+    #   pvc          — Dynamic PVC.
+    #                  StatefulSet: one PVC per pod via volumeClaimTemplate (RWO safe).
+    #                  Deployment:  single shared PVC created by this chart.
+    #                               Use accessMode: ReadWriteMany for replicaCount > 1.
+    #                  DaemonSet:   not recommended — use hostPath or emptyDir instead.
+    #   existingClaim — Use a pre-existing PVC (must exist in the same namespace).
+    #                   The PVC may be backed by NFS, cloud disk, CSI, etc.
+    #   emptyDir     — Ephemeral; definitions are re-downloaded on every pod restart.
+    #                   Low overhead but slow cold starts. Good for DaemonSet.
+    #   hostPath     — Persist definitions at a path on the node filesystem.
+    #                   Survives pod restarts. Recommended for DaemonSet.
+    type: pvc
+
+    # PVC options (type: pvc)
+    # Set storageClassName: "" to use the cluster default storage class.
+    storageClassName: ""
     accessMode: ReadWriteOnce
-    # -- Size of the PVC (ClamAV definitions are ~300-400 MB; 1Gi gives headroom)
     size: 1Gi
+
+    # existingClaim options (type: existingClaim)
+    existingClaim: ""
+
+    # hostPath options (type: hostPath)
+    hostPath:
+      path: /var/lib/clamav
+      type: DirectoryOrCreate
+
+# DaemonSet-specific settings (ignored unless workload.type: daemonset)
+daemonset:
+  updateStrategy:
+    type: RollingUpdate
+  # Host filesystem scanning mounts the node's root FS read-only into the pod.
+  # Enables clamd to scan files on the node itself (e.g. container image layers, host binaries).
+  # Scanned path inside the pod: .mountPath  (e.g. clamdscan /host)
+  hostScanning:
+    enabled: false
+    mountPath: /host
+    hostPath: /
+    readOnly: true
+
+# StatefulSet-specific settings (ignored unless workload.type: statefulset)
+statefulset:
+  updateStrategy:
+    type: RollingUpdate
+    # rollingUpdate:
+    #   partition: 0    # Only pods with ordinal >= partition are updated (canary pattern)
+  podManagementPolicy: OrderedReady
+
+# -- PodDisruptionBudget — protects replicas during node drains and cluster upgrades.
+# Applies to StatefulSet and Deployment. Ignored for DaemonSet.
+podDisruptionBudget:
+  enabled: false
+  # Use either minAvailable or maxUnavailable, not both.
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# -- NetworkPolicy — restricts ingress to the clamd port.
+# Enabled by default to follow least-privilege networking. Allow all pods in the cluster
+# to reach clamd, or narrow it further with namespaceSelector / podSelector.
+networkPolicy:
+  enabled: false
+  # Additional ingress rules. By default only port 3310 is allowed from any pod.
+  # Use this to restrict to specific namespaces or pods:
+  # ingress:
+  #   - from:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             kubernetes.io/metadata.name: my-app-namespace
+  ingress: []
 
 # -- Resources for the clamd container
 clamd:
@@ -62,6 +158,12 @@ clamd:
   env:
     # Disable freshclamd inside clamd container — sidecar handles updates
     CLAMAV_NO_FRESHCLAMD: "true"
+  # Extra clamd.conf directives appended after config.clamd.
+  # Useful for overriding individual settings without replacing the whole config block.
+  # extraConfig: |
+  #   MaxFileSize 100M
+  #   MaxScanSize 200M
+  extraConfig: ""
   probes:
     startup:
       failureThreshold: 30
@@ -85,6 +187,21 @@ freshclam:
     CLAMAV_NO_CLAMD: "true"
     # Number of definition update checks per day
     FRESHCLAM_CHECKS: "24"
+  # Air-gapped / private mirror support.
+  # Overrides DatabaseMirror and disables scripted updates — use for internal mirrors.
+  # privateMirror: "http://clamav-mirror.internal"
+  privateMirror: ""
+  # Proxy settings for freshclam to reach the ClamAV CDN (or private mirror) through a proxy.
+  proxy:
+    server: ""
+    port: ""
+    username: ""
+    password: ""
+  # Extra freshclam.conf directives appended after config.freshclam.
+  # extraConfig: |
+  #   ConnectTimeout 60
+  #   MaxAttempts 5
+  extraConfig: ""
 
 # -- Resources for the freshclam-init initContainer
 freshclamInit:
@@ -131,7 +248,7 @@ config:
     ScanMail yes
 
   freshclam: |
-    # Database directory — writes to persistent PVC
+    # Database directory — writes to persistent storage
     # survives pod restarts, no re-download needed
     DatabaseDirectory /var/lib/clamav
     # Pull from official ClamAV CDN

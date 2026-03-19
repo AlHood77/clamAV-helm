@@ -1,0 +1,25 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clamav.fullname" . }}
+  namespace: {{ include "clamav.namespace" . }}
+  labels:
+    {{- include "clamav.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clamav.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow inbound connections to the clamd port from any pod in the cluster.
+    # Narrow this with namespaceSelector / podSelector in .Values.networkPolicy.ingress.
+    - ports:
+        - port: {{ .Values.service.main.port }}
+          protocol: TCP
+      {{- if .Values.networkPolicy.ingress }}
+      from:
+        {{- toYaml .Values.networkPolicy.ingress | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,25 @@
+{{/*
+Standalone PVC for Deployment and DaemonSet workloads.
+StatefulSet uses volumeClaimTemplates instead (one PVC per pod).
+
+Note for Deployment with replicaCount > 1: set accessMode: ReadWriteMany.
+Note for DaemonSet: prefer hostPath or emptyDir over pvc.
+*/}}
+{{- if and (ne .Values.workload.type "statefulset") (eq .Values.persistence.definitions.type "pvc") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "clamav.fullname" . }}-definitions
+  namespace: {{ include "clamav.namespace" . }}
+  labels:
+    {{- include "clamav.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.definitions.accessMode }}
+  {{- if .Values.persistence.definitions.storageClassName }}
+  storageClassName: {{ .Values.persistence.definitions.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.definitions.size }}
+{{- end }}

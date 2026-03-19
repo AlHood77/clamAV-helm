@@ -2,15 +2,31 @@ ClamAV has been deployed successfully!
 
   Release:   {{ .Release.Name }}
   Namespace: {{ include "clamav.namespace" . }}
+  Workload:  {{ .Values.workload.type }}
+  Storage:   {{ .Values.persistence.definitions.type }}
 
 Clamd is accessible within the cluster at:
   {{ include "clamav.fullname" . }}.{{ include "clamav.namespace" . }}.svc.cluster.local:{{ .Values.service.main.port }}
 
+{{- if eq .Values.workload.type "statefulset" }}
+
 Each pod is also reachable via the headless service:
   <pod>.{{ include "clamav.fullname" . }}-headless.{{ include "clamav.namespace" . }}.svc.cluster.local:{{ .Values.service.main.port }}
+{{- end }}
 
 To check pod status:
   kubectl get pods -n {{ include "clamav.namespace" . }}
 
 To watch ClamAV logs:
+{{- if eq .Values.workload.type "statefulset" }}
   kubectl logs -n {{ include "clamav.namespace" . }} statefulset/{{ include "clamav.fullname" . }} -c clamd -f
+{{- else if eq .Values.workload.type "deployment" }}
+  kubectl logs -n {{ include "clamav.namespace" . }} deployment/{{ include "clamav.fullname" . }} -c clamd -f
+{{- else if eq .Values.workload.type "daemonset" }}
+  kubectl logs -n {{ include "clamav.namespace" . }} daemonset/{{ include "clamav.fullname" . }} -c clamd -f
+  {{- if .Values.daemonset.hostScanning.enabled }}
+
+Host scanning is enabled. To scan the node filesystem:
+  kubectl exec -n {{ include "clamav.namespace" . }} <pod> -c clamd -- clamdscan {{ .Values.daemonset.hostScanning.mountPath }}
+  {{- end }}
+{{- end }}

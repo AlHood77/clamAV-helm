@@ -1,13 +1,18 @@
 apiVersion: v2
 name: clamav
-description: A Helm chart for deploying ClamAV antivirus as a StatefulSet with clamd and freshclam sidecars
+description: A Helm chart for deploying ClamAV antivirus on Kubernetes. Supports StatefulSet, Deployment, and DaemonSet workload types with pluggable storage backends.
 type: application
 version: 0.1.0
 appVersion: "1.4"
 keywords:
   - clamav
   - antivirus
+  - malware
   - security
+  - scanning
+  - clamd
+  - freshclam
+  - daemonset
 sources:
   - https://github.com/Cisco-Talos/clamav
 maintainers:

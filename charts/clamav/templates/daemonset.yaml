@@ -1,24 +1,17 @@
-{{- if eq .Values.workload.type "statefulset" }}
+{{- if eq .Values.workload.type "daemonset" }}
 apiVersion: apps/v1
-kind: StatefulSet
+kind: DaemonSet
 metadata:
   name: {{ include "clamav.fullname" . }}
   namespace: {{ include "clamav.namespace" . }}
   labels:
     {{- include "clamav.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "clamav.fullname" . }}-headless
-  replicas: {{ .Values.replicaCount }}
-  podManagementPolicy: {{ .Values.statefulset.podManagementPolicy }}
-  updateStrategy:
-    type: {{ .Values.statefulset.updateStrategy.type }}
-    {{- with .Values.statefulset.updateStrategy.rollingUpdate }}
-    rollingUpdate:
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
   selector:
     matchLabels:
       {{- include "clamav.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: {{ .Values.daemonset.updateStrategy.type }}
   template:
     metadata:
       labels:
@@ -54,21 +47,12 @@ spec:
         {{- include "clamav.freshclamContainer" . | nindent 8 }}
       volumes:
         {{- include "clamav.commonVolumes" . | nindent 8 }}
-        {{- if ne .Values.persistence.definitions.type "pvc" }}
         {{- include "clamav.definitionsVolume" . | nindent 8 }}
+        {{- if .Values.daemonset.hostScanning.enabled }}
+        # Node root filesystem — mounted read-only for node-level AV scanning
+        - name: host-root
+          hostPath:
+            path: {{ .Values.daemonset.hostScanning.hostPath }}
+            type: Directory
         {{- end }}
-  {{- if eq .Values.persistence.definitions.type "pvc" }}
-  volumeClaimTemplates:
-    - metadata:
-        name: definitions
-      spec:
-        accessModes:
-          - {{ .Values.persistence.definitions.accessMode }}
-        {{- if .Values.persistence.definitions.storageClassName }}
-        storageClassName: {{ .Values.persistence.definitions.storageClassName }}
-        {{- end }}
-        resources:
-          requests:
-            storage: {{ .Values.persistence.definitions.size }}
-  {{- end }}
 {{- end }}

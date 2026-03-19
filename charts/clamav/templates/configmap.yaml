@@ -8,5 +8,26 @@ metadata:
 data:
   clamd.conf: |
     {{- .Values.config.clamd | nindent 4 }}
+    {{- if .Values.clamd.extraConfig }}
+    {{- .Values.clamd.extraConfig | nindent 4 }}
+    {{- end }}
   freshclam.conf: |
     {{- .Values.config.freshclam | nindent 4 }}
+    {{- if .Values.freshclam.privateMirror }}
+    PrivateMirror {{ .Values.freshclam.privateMirror }}
+    {{- end }}
+    {{- with .Values.freshclam.proxy.server }}
+    HTTPProxyServer {{ . }}
+    {{- end }}
+    {{- with .Values.freshclam.proxy.port }}
+    HTTPProxyPort {{ . }}
+    {{- end }}
+    {{- with .Values.freshclam.proxy.username }}
+    HTTPProxyUsername {{ . }}
+    {{- end }}
+    {{- with .Values.freshclam.proxy.password }}
+    HTTPProxyPassword {{ . }}
+    {{- end }}
+    {{- if .Values.freshclam.extraConfig }}
+    {{- .Values.freshclam.extraConfig | nindent 4 }}
+    {{- end }}
